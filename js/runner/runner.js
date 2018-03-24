@@ -12,14 +12,14 @@ var CollisionBox = require('./CollisionBox'),
  * @constructor
  * @export
  */
-function Runner(outerContainerId, opt_config) {
+function Runner(outerContainerEl, opt_config) {
     // Singleton
     if (Runner.instance_) {
         return Runner.instance_;
     }
     Runner.instance_ = this;
 
-    this.outerContainerEl = document.querySelector(outerContainerId);
+    this.outerContainerEl = outerContainerEl;
     this.containerEl = null;
     this.snackbarEl = null;
 
@@ -93,7 +93,7 @@ var IS_HIDPI = utils.IS_HIDPI;
 var IS_IOS = /iPad|iPhone|iPod/.test(window.navigator.platform);
 
 /** @const */
-var IS_MOBILE = /Android/.test(window.navigator.userAgent) || IS_IOS;
+var IS_MOBILE = true;
 
 /** @const */
 var IS_TOUCH_ENABLED = 'ontouchstart' in window;
@@ -291,20 +291,16 @@ Runner.prototype = {
      */
     loadImages: function () {
         if (IS_HIDPI) {
-            Runner.imageSprite = document.getElementById('offline-resources-2x');
+            Runner.imageSprite = new Image();
+            Runner.imageSprite.src = 'images/offline-resources-2x.png'
             this.spriteDef = Runner.spriteDefinition.HDPI;
         } else {
-            Runner.imageSprite = document.getElementById('offline-resources-1x');
+            Runner.imageSprite = new Image();
+            Runner.imageSprite.src = 'images/offline-resources-1x.png'
             this.spriteDef = Runner.spriteDefinition.LDPI;
         }
 
-        if (Runner.imageSprite.complete) {
-            this.init();
-        } else {
-            // If the images are not yet loaded, add a listener.
-            Runner.imageSprite.addEventListener(Runner.events.LOAD,
-                this.init.bind(this));
-        }
+        this.init();
     },
 
     /**
@@ -436,11 +432,9 @@ Runner.prototype = {
         clearInterval(this.resizeTimerId_);
         this.resizeTimerId_ = null;
 
-        var boxStyles = window.getComputedStyle(this.outerContainerEl);
-        var padding = Number(boxStyles.paddingLeft.substr(0,
-            boxStyles.paddingLeft.length - 2));
+        var padding = 0;
 
-        this.dimensions.WIDTH = this.outerContainerEl.offsetWidth - padding * 2;
+        this.dimensions.WIDTH = this.outerContainerEl.width - padding * 2;
         if (this.isArcadeMode()) {
             this.dimensions.WIDTH = Math.min(DEFAULT_WIDTH, this.dimensions.WIDTH);
             if (this.activated) {
@@ -548,6 +542,7 @@ Runner.prototype = {
      * Update the game frame and schedules the next one.
      */
     update: function () {
+
         this.updatePending = false;
 
         var now = getTimeStamp();

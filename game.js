@@ -1,6 +1,4 @@
 import './js/libs/weapp-adapter'
-import './js/libs/symbol'
 
-import Main from './js/main'
+var index = require('./js/runner/index');
 
-new Main()
