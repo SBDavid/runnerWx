@@ -20,8 +20,6 @@ function Runner(outerContainerEl, opt_config) {
     Runner.instance_ = this;
 
     this.outerContainerEl = outerContainerEl;
-    this.containerEl = null;
-    this.snackbarEl = null;
 
     this.config = opt_config || Runner.config;
     // Logical dimensions of the container.
@@ -243,24 +241,6 @@ Runner.prototype = {
     },
 
     /**
-     * For disabled instances, set up a snackbar with the disabled message.
-     */
-    setupDisabledRunner: function () {
-        this.containerEl = document.createElement('div');
-        this.containerEl.className = Runner.classes.SNACKBAR;
-        this.containerEl.textContent = loadTimeData.getValue('disabledEasterEgg');
-        this.outerContainerEl.appendChild(this.containerEl);
-
-        // Show notification when the activation key is pressed.
-        document.addEventListener(Runner.events.KEYDOWN, function (e) {
-            if (Runner.keycodes.JUMP[e.keyCode]) {
-                this.containerEl.classList.add(Runner.classes.SNACKBAR_SHOW);
-                document.querySelector('.icon').classList.add('icon-disabled');
-            }
-        }.bind(this));
-    },
-
-    /**
      * Setting individual settings for debugging.
      * @param {string} setting
      * @param {*} value
@@ -355,11 +335,8 @@ Runner.prototype = {
         this.adjustDimensions();
         this.setSpeed();
 
-        this.containerEl = document.createElement('div');
-        this.containerEl.className = Runner.classes.CONTAINER;
-
         // Player canvas container.
-        this.canvas = createCanvas(this.containerEl, this.dimensions.WIDTH,
+        this.canvas = createCanvas(this.dimensions.WIDTH,
             this.dimensions.HEIGHT, Runner.classes.PLAYER);
 
         this.canvasCtx = this.canvas.getContext('2d');
@@ -381,8 +358,6 @@ Runner.prototype = {
         // 开始按钮
         this.StartBtn = new StartBtn(this.canvas, this.spriteDef.RESTART,
             this.dimensions);
-
-        this.outerContainerEl.appendChild(this.containerEl);
 
         if (IS_MOBILE) {
             this.createTouchController();
@@ -456,8 +431,6 @@ Runner.prototype = {
 
             // Outer container and distance meter.
             if (this.playing || this.crashed || this.paused) {
-                this.containerEl.style.width = this.dimensions.WIDTH + 'px';
-                this.containerEl.style.height = this.dimensions.HEIGHT + 'px';
                 this.distanceMeter.update(0, Math.ceil(this.distanceRan));
                 this.stop();
             } else {
@@ -492,7 +465,6 @@ Runner.prototype = {
               this.startGame.bind(this));
   
             this.containercontainerElEl.style.webkitAnimation = 'intro .4s ease-out 1 both'; */
-            this.containerEl.style.width = this.dimensions.WIDTH + 'px';
 
             if (this.touchController) {
                 this.outerContainerEl.appendChild(this.touchController);
@@ -519,7 +491,6 @@ Runner.prototype = {
         this.runningTime = 0;
         this.playingIntro = false;
         this.tRex.playingIntro = false;
-        this.containerEl.style.webkitAnimation = '';
         this.playCount++;
 
         // Handle tabbing off the page. Pause the current game.
@@ -617,6 +588,10 @@ Runner.prototype = {
             }
         }
 
+        if (this.config.CB_FRAME_DRAW) {
+            this.config.CB_FRAME_DRAW(this.canvas);
+        }
+
         if (this.playing || (!this.activated &&
             this.tRex.blinkCount < Runner.config.MAX_BLINK_COUNT)) {
             this.tRex.update(deltaTime);
@@ -649,22 +624,12 @@ Runner.prototype = {
      */
     startListening: function () {
         // Keys.
-        document.addEventListener(Runner.events.KEYDOWN, this);
-        document.addEventListener(Runner.events.KEYUP, this);
+        document.addEventListener(Runner.events.KEYDOWN, this.handleEvent.bind(this));
+        document.addEventListener(Runner.events.KEYUP, this.handleEvent);
 
-        if (IS_MOBILE) {
-            // Mobile only touch devices.
-            this.touchController.addEventListener(Runner.events.TOUCHSTART, this);
-            this.touchController.addEventListener(Runner.events.TOUCHEND, this);
-            this.containerEl.addEventListener(Runner.events.TOUCHSTART, this);
-            document.addEventListener(Runner.events.TOUCHSTART, this, {
-                once: true
-            })
-        } else {
-            // Mouse.
-            document.addEventListener(Runner.events.MOUSEDOWN, this);
-            document.addEventListener(Runner.events.MOUSEUP, this);
-        }
+        this.touchController.addEventListener(Runner.events.TOUCHSTART, this.handleEvent);
+        this.touchController.addEventListener(Runner.events.TOUCHEND, this.handleEvent);
+        document.addEventListener(Runner.events.TOUCHSTART, this.handleEvent.bind(this))
     },
 
     /**
@@ -674,14 +639,8 @@ Runner.prototype = {
         document.removeEventListener(Runner.events.KEYDOWN, this);
         document.removeEventListener(Runner.events.KEYUP, this);
 
-        if (IS_MOBILE) {
-            this.touchController.removeEventListener(Runner.events.TOUCHSTART, this);
-            this.touchController.removeEventListener(Runner.events.TOUCHEND, this);
-            this.containerEl.removeEventListener(Runner.events.TOUCHSTART, this);
-        } else {
-            document.removeEventListener(Runner.events.MOUSEDOWN, this);
-            document.removeEventListener(Runner.events.MOUSEUP, this);
-        }
+        this.touchController.removeEventListener(Runner.events.TOUCHSTART, this);
+        this.touchController.removeEventListener(Runner.events.TOUCHEND, this);
     },
 
     /**
@@ -722,8 +681,7 @@ Runner.prototype = {
                     this.tRex.setDuck(true);
                 }
             }
-        } else if (this.crashed && e.type == Runner.events.TOUCHSTART &&
-            e.currentTarget == this.containerEl) {
+        } else if (this.crashed && e.type == Runner.events.TOUCHSTART ) {
             this.restart();
         }
     },
@@ -855,7 +813,6 @@ Runner.prototype = {
             this.distanceRan = 0;
             this.setSpeed(this.config.SPEED);
             this.time = getTimeStamp();
-            this.containerEl.classList.remove(Runner.classes.CRASHED);
             this.clearCanvas();
             this.distanceMeter.reset(this.highestScore);
             this.horizon.reset();
@@ -898,8 +855,8 @@ Runner.prototype = {
             Runner.config.ARCADE_MODE_INITIAL_TOP_POSITION) *
             Runner.config.ARCADE_MODE_TOP_POSITION_PERCENT)) *
             window.devicePixelRatio;
-        this.containerEl.style.transform = 'scale(' + scale + ') translateY(' +
-            translateY + 'px)';
+        /* this.containerEl.style.transform = 'scale(' + scale + ') translateY(' +
+            translateY + 'px)'; */
     },
 
     /**
@@ -1006,19 +963,17 @@ function vibrate(duration) {
 
 /**
  * Create canvas element.
- * @param {HTMLElement} container Element to append canvas to.
  * @param {number} width
  * @param {number} height
  * @param {string} opt_classname
  * @return {HTMLCanvasElement}
  */
-function createCanvas(container, width, height, opt_classname) {
+function createCanvas(width, height, opt_classname) {
     var canvas = document.createElement('canvas');
     canvas.className = opt_classname ? Runner.classes.CANVAS + ' ' +
         opt_classname : Runner.classes.CANVAS;
     canvas.width = width;
     canvas.height = height;
-    container.appendChild(canvas);
 
     return canvas;
 }
