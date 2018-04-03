@@ -26,8 +26,11 @@ let config = {
     SPEED_DROP_COEFFICIENT: 3,
     ARCADE_MODE_INITIAL_TOP_POSITION: 35,
     ARCADE_MODE_TOP_POSITION_PERCENT: 0.1,
-    CB_FRAME_DRAW: function(_canvas) {
-        ctx.drawImage(_canvas, 0, 0, 300, 300);
+    CB_FRAME_DRAW: function (_canvas) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(_canvas, 0, 50, _canvas.width, _canvas.height);
     }
 };
 

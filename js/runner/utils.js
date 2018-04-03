@@ -8,6 +8,6 @@ module.exports = {
     getRandomNum: function (min, max) {
         return Math.floor(Math.random() * (max - min + 1)) + min;
     },
-    IS_HIDPI: window.devicePixelRatio > 1,
+    IS_HIDPI: false,
     FPS: 60
 }

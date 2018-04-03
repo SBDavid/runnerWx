@@ -54,7 +54,12 @@ function Runner(outerContainerEl, opt_config) {
 
     // Sound FX.
     this.audioBuffer = null;
-    this.soundFx = {};
+
+    this.soundFx = {
+        BUTTON_PRESS: 'offline-sound-press',
+        HIT: 'offline-sound-hit',
+        SCORE: 'offline-sound-reached'
+    };
 
     // Global web audio context for playing sounds.
     this.audioContext = null;
@@ -270,6 +275,7 @@ Runner.prototype = {
      * definition.
      */
     loadImages: function () {
+        var self = this;
         if (IS_HIDPI) {
             Runner.imageSprite = new Image();
             Runner.imageSprite.src = 'images/offline-resources-2x.png'
@@ -280,30 +286,28 @@ Runner.prototype = {
             this.spriteDef = Runner.spriteDefinition.LDPI;
         }
 
-        this.init();
+        Runner.imageSprite.onload = function() {
+            self.init();
+        }
+
     },
 
     /**
      * Load and decode base 64 encoded sounds.
      */
     loadSounds: function () {
+
         if (!IS_IOS) {
-            this.audioContext = new AudioContext();
+            this.audioContext = {};
 
-            var resourceTemplate =
-                document.getElementById(this.config.RESOURCE_TEMPLATE_ID).content;
+            this.audioContext['offline-sound-press'] = new Audio();
+            this.audioContext['offline-sound-press'].src = '../../audio/offline-sound-press.mp3';
 
-            for (var sound in Runner.sounds) {
-                var soundSrc =
-                    resourceTemplate.getElementById(Runner.sounds[sound]).src;
-                soundSrc = soundSrc.substr(soundSrc.indexOf(',') + 1);
-                var buffer = decodeBase64ToArrayBuffer(soundSrc);
+            this.audioContext['offline-sound-hit'] = new Audio();
+            this.audioContext['offline-sound-hit'].src = '../../audio/offline-sound-hit.mp3';
 
-                // Async, so no guarantee of order in array.
-                this.audioContext.decodeAudioData(buffer, function (index, audioData) {
-                    this.soundFx[index] = audioData;
-                }.bind(this, sound));
-            }
+            this.audioContext['offline-sound-reached'] = new Audio();
+            this.audioContext['offline-sound-reached'].src = '../../audio/offline-sound-reached.mp3';
         }
     },
 
@@ -342,7 +346,7 @@ Runner.prototype = {
         this.canvasCtx = this.canvas.getContext('2d');
         this.canvasCtx.fillStyle = '#f7f7f7';
         this.canvasCtx.fill();
-        Runner.updateCanvasScaling(this.canvas);
+        /* Runner.updateCanvasScaling(this.canvas); */
 
         // Horizon contains clouds, obstacles and the ground.
         this.horizon = new Horizon(this.canvas, this.spriteDef, this.dimensions,
@@ -359,35 +363,11 @@ Runner.prototype = {
         this.StartBtn = new StartBtn(this.canvas, this.spriteDef.RESTART,
             this.dimensions);
 
-        if (IS_MOBILE) {
-            this.createTouchController();
-        }
-
         this.startListening();
         this.update();
 
         window.addEventListener(Runner.events.RESIZE,
             this.debounceResize.bind(this));
-    },
-
-    /**
-     * Create the touch controller. A div that covers whole screen.
-     */
-    createTouchController: function () {
-        this.touchController = document.createElement('div');
-        this.touchController.className = Runner.classes.TOUCH_CONTROLLER;
-    },
-
-    hideTouchController: function() {
-        if (this.touchController) {
-            this.touchController.style.height = 0;
-        }
-    },
-
-    showTouchController: function() {
-        if (this.touchController) {
-            this.touchController.style.height = '100%';
-        }
     },
 
     /**
@@ -422,7 +402,7 @@ Runner.prototype = {
             this.canvas.width = this.dimensions.WIDTH;
             this.canvas.height = this.dimensions.HEIGHT;
 
-            Runner.updateCanvasScaling(this.canvas);
+            /* Runner.updateCanvasScaling(this.canvas); */
 
             this.distanceMeter.calcXPos(this.dimensions.WIDTH);
             this.clearCanvas();
@@ -466,14 +446,11 @@ Runner.prototype = {
   
             this.containercontainerElEl.style.webkitAnimation = 'intro .4s ease-out 1 both'; */
 
-            if (this.touchController) {
-                this.outerContainerEl.appendChild(this.touchController);
-            }
             this.playing = true;
             this.activated = true;
             setTimeout(() => {
                 this.startGame();
-            }, 400);
+            }, 200);
 
         } else if (this.crashed) {
             this.restart();
@@ -526,7 +503,6 @@ Runner.prototype = {
             if (this.tRex.jumping) {
                 this.tRex.updateJump(deltaTime);
             }
-
             this.runningTime += deltaTime;
             var hasObstacles = this.runningTime > this.config.CLEAR_TIME;
 
@@ -534,7 +510,6 @@ Runner.prototype = {
             if (this.tRex.jumpCount == 1 && !this.playingIntro) {
                 this.playIntro();
             }
-
             // The horizon doesn't move until the intro is over.
             if (this.playingIntro) {
                 this.horizon.update(0, this.currentSpeed, hasObstacles);
@@ -543,7 +518,6 @@ Runner.prototype = {
                 this.horizon.update(deltaTime, this.currentSpeed, hasObstacles,
                     this.inverted);
             }
-
             // Check for collisions.
             var collision = hasObstacles &&
                 checkForCollision(this.horizon.obstacles[0], this.tRex);
@@ -556,8 +530,8 @@ Runner.prototype = {
                 }
             } else {
                 this.gameOver();
+                this.paintGame();
             }
-
             var playAchievementSound = this.distanceMeter.update(deltaTime,
                 Math.ceil(this.distanceRan));
 
@@ -588,14 +562,21 @@ Runner.prototype = {
             }
         }
 
-        if (this.config.CB_FRAME_DRAW) {
-            this.config.CB_FRAME_DRAW(this.canvas);
-        }
+
 
         if (this.playing || (!this.activated &&
             this.tRex.blinkCount < Runner.config.MAX_BLINK_COUNT)) {
             this.tRex.update(deltaTime);
+
+            this.paintGame();
+
             this.scheduleNextUpdate();
+        }
+    },
+
+    paintGame: function() {
+        if (this.config.CB_FRAME_DRAW) {
+            this.config.CB_FRAME_DRAW(this.canvas);
         }
     },
 
@@ -623,12 +604,6 @@ Runner.prototype = {
      * Bind relevant key / mouse / touch listeners.
      */
     startListening: function () {
-        // Keys.
-        document.addEventListener(Runner.events.KEYDOWN, this.handleEvent.bind(this));
-        document.addEventListener(Runner.events.KEYUP, this.handleEvent);
-
-        this.touchController.addEventListener(Runner.events.TOUCHSTART, this.handleEvent);
-        this.touchController.addEventListener(Runner.events.TOUCHEND, this.handleEvent);
         document.addEventListener(Runner.events.TOUCHSTART, this.handleEvent.bind(this))
     },
 
@@ -636,11 +611,7 @@ Runner.prototype = {
      * Remove all listeners.
      */
     stopListening: function () {
-        document.removeEventListener(Runner.events.KEYDOWN, this);
-        document.removeEventListener(Runner.events.KEYUP, this);
-
-        this.touchController.removeEventListener(Runner.events.TOUCHSTART, this);
-        this.touchController.removeEventListener(Runner.events.TOUCHEND, this);
+        document.removeEventListener(Runner.events.TOUCHSTART, this)
     },
 
     /**
@@ -778,8 +749,6 @@ Runner.prototype = {
         // Reset the time clock.
         this.time = getTimeStamp();
 
-        // 隐藏控制面板
-        this.hideTouchController();
         document.title = `我的小恐龙蹦跑了${this.distanceMeter.getActualDistance(this.highestScore)}米，真是太厉害了！`;
         if (this.afterGameOver) {
             this.afterGameOver();
@@ -820,7 +789,6 @@ Runner.prototype = {
             this.playSound(this.soundFx.BUTTON_PRESS);
             this.invert(true);
             this.update();
-            this.showTouchController();
         }
     },
 
@@ -878,10 +846,8 @@ Runner.prototype = {
      */
     playSound: function (soundBuffer) {
         if (soundBuffer) {
-            var sourceNode = this.audioContext.createBufferSource();
-            sourceNode.buffer = soundBuffer;
-            sourceNode.connect(this.audioContext.destination);
-            sourceNode.start(0);
+            //this.audioContext[soundBuffer].currentTime = 0;
+            this.audioContext[soundBuffer].play();
         }
     },
 
@@ -891,12 +857,11 @@ Runner.prototype = {
      */
     invert: function (reset) {
         if (reset) {
-            document.body.classList.toggle(Runner.classes.INVERTED, false);
+            // document.body.classList.toggle(Runner.classes.INVERTED, false);
             this.invertTimer = 0;
             this.inverted = false;
         } else {
-            this.inverted = document.body.classList.toggle(Runner.classes.INVERTED,
-                this.invertTrigger);
+            this.inverted = true;
         }
     }
 };
@@ -1001,7 +966,7 @@ function decodeBase64ToArrayBuffer(base64String) {
  * @return {number}
  */
 function getTimeStamp() {
-    return IS_IOS ? new Date().getTime() : performance.now();
+    return true ? new Date().getTime() : performance.now();
 }
 
 
@@ -1357,6 +1322,7 @@ Trex.prototype = {
         this.groundYPos = Runner.defaultDimensions.HEIGHT - this.config.HEIGHT -
             Runner.config.BOTTOM_PAD;
         this.yPos = this.groundYPos;
+        this.xPos = 20;
         this.minJumpHeight = this.groundYPos - this.config.MIN_JUMP_HEIGHT;
 
         this.draw(0, 0);
@@ -1394,10 +1360,10 @@ Trex.prototype = {
         }
 
         // Game intro animation, T-rex moves in from the left.
-        if (this.playingIntro && this.xPos < this.config.START_X_POS) {
+        /* if (this.playingIntro && this.xPos < this.config.START_X_POS) {
             this.xPos += Math.round((this.config.START_X_POS /
                 this.config.INTRO_DURATION) * deltaTime);
-        }
+        } */
 
         if (this.status == Trex.status.WAITING) {
             this.blink(getTimeStamp());
