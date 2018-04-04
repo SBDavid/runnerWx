@@ -8,8 +8,8 @@
 		"newFeature": true
 	},
 	"compileType": "game",
-	"libVersion": "game",
-	"appid": "wxdf3f08a844c5a6c0",
+	"libVersion": "1.9.94",
+	"appid": "touristappid",
 	"projectname": "runnerWx",
 	"isGameTourist": true,
 	"condition": {
